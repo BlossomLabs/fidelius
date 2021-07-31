@@ -7,6 +7,8 @@ import "hardhat/console.sol";
 contract YourContract {
 
   event SetPurpose(address sender, string purpose);
+  event RegisterPublicKey(address sender, bytes pubkey);
+  event NewSecret(address sender, bytes ciphertext, address grantee);
 
   string public purpose = "Building Unstoppable Apps";
 
@@ -28,4 +30,12 @@ contract YourContract {
       console.log(msg.sender,"set purpose to",purpose);
       emit SetPurpose(msg.sender, purpose);
   }
+
+  function addNewSecret(bytes calldata ciphertext, address grantee) public {
+     emit NewSecret(msg.sender, ciphertext, grantee);
+   }
+
+   function register(bytes calldata publicKey) external {
+     emit RegisterPublicKey(msg.sender, publicKey);
+   }
 }
