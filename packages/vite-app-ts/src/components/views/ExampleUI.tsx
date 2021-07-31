@@ -1,18 +1,20 @@
 /* eslint-disable jsx-a11y/accessible-emoji */
 
-import { SyncOutlined } from '@ant-design/icons';
+import { encode, decode } from '@ethersproject/base64';
+import { Button, Divider, List, Input } from 'antd';
 import { JsonRpcProvider, Web3Provider } from '@ethersproject/providers';
-import { formatEther, parseEther } from '@ethersproject/units';
-import { Button, Card, DatePicker, Divider, Input, List, Progress, Slider, Spin, Switch } from 'antd';
-import { Contract } from 'ethers';
+import { Contract, ethers } from 'ethers';
 import React, { useState } from 'react';
+import { encrypt, EthEncryptedData } from 'eth-sig-util';
 import { FC } from 'react';
-import { Address, Balance } from '~~/components/common';
+import { Address } from '~~/components/common';
 
 interface IExampleUIProps {
   userProvider: JsonRpcProvider | Web3Provider | undefined;
   purpose: string;
   setPurposeEvents: any;
+  setPublicKeyEvents: any;
+  setSecretEvents: any;
   address: string;
   mainnetProvider: any;
   localProvider: any;
@@ -23,20 +25,14 @@ interface IExampleUIProps {
   writeContracts: Record<string, Contract>;
 }
 
+function stringifiableToHex(value: EthEncryptedData): string {
+  return ethers.utils.hexlify(Buffer.from(JSON.stringify(value)));
+}
+
 export const ExampleUI: FC<IExampleUIProps> = (props) => {
-  const {
-    purpose,
-    setPurposeEvents,
-    address,
-    mainnetProvider,
-    localProvider,
-    yourLocalBalance,
-    price,
-    tx,
-    readContracts,
-    writeContracts,
-  } = props;
-  const [newPurpose, setNewPurpose] = useState('loading...');
+  const { setPublicKeyEvents, setSecretEvents, address, mainnetProvider, tx, readContracts, writeContracts } = props;
+  const [newSecret, setNewSecret] = useState('loading...');
+  const [granteeAddr, setGranteeAddr] = useState(address || '0x00');
 
   return (
     <div>
@@ -44,21 +40,22 @@ export const ExampleUI: FC<IExampleUIProps> = (props) => {
         ⚙️ Here is an example UI that displays and sets the purpose in your smart contract:
       */}
       <div style={{ border: '1px solid #cccccc', padding: 16, width: 400, margin: 'auto', marginTop: 64 }}>
-        <h2>Example UI:</h2>
-        <h4>purpose: {purpose}</h4>
+        <h2>Fidelius:</h2>
+        Your address:
+        <Address address={address} ensProvider={mainnetProvider} fontSize={16} />
+        <br />
         <Divider />
         <div style={{ margin: 8 }}>
-          <Input
-            onChange={(e) => {
-              setNewPurpose(e.target.value);
-            }}
-          />
           <Button
             style={{ marginTop: 8 }}
             onClick={async () => {
-              /* look how you call setPurpose on your contract: */
-              /* notice how you pass a call back for tx updates too */
-              const result = tx(writeContracts.YourContract.setPurpose(newPurpose), (update: any) => {
+              const publicKey = await window.ethereum
+                .request({
+                  method: 'eth_getEncryptionPublicKey',
+                  params: [address],
+                })
+                .then((base64: string) => decode(base64));
+              tx(writeContracts.YourContract.register(publicKey), (update: any) => {
                 console.log('📡 Transaction Update:', update);
                 if (update && (update.status === 'confirmed' || update.status === 1)) {
                   console.log(' 🍾 Transaction ' + update.hash + ' finished!');
@@ -73,10 +70,8 @@ export const ExampleUI: FC<IExampleUIProps> = (props) => {
                   );
                 }
               });
-              console.log('awaiting metamask/web3 confirm result...', result);
-              console.log(await result);
             }}>
-            Set Purpose!
+            Publish public key!
           </Button>
         </div>
         <Divider />
@@ -90,152 +85,71 @@ export const ExampleUI: FC<IExampleUIProps> = (props) => {
           fontSize={16}
         />
         <Divider />
-        {/* use formatEther to display a BigNumber: */}
-        <h2>Your Balance: {yourLocalBalance ? formatEther(yourLocalBalance) : '...'}</h2>
-        <div>OR</div>
-        <Balance address={address} provider={localProvider} price={price} />
-        <Divider />
-        <div>🐳 Example Whale Balance:</div>
-        <Balance balance={parseEther('1000')} provider={localProvider} price={price} address={address} />
-        <Divider />
-        {/* use formatEther to display a BigNumber: */}
-        <h2>Your Balance: {yourLocalBalance ? formatEther(yourLocalBalance) : '...'}</h2>
-        <Divider />
-        Your Contract Address:
-        <Address
-          address={readContracts ? readContracts.YourContract.address : readContracts}
-          ensProvider={mainnetProvider}
-          fontSize={16}
+        <h3>Tell secret</h3>
+        Secret
+        <Input
+          onChange={(e) => {
+            setNewSecret(e.target.value);
+          }}
         />
-        <Divider />
-        <div style={{ margin: 8 }}>
-          <Button
-            onClick={() => {
-              /* look how you call setPurpose on your contract: */
-              tx(writeContracts.YourContract.setPurpose('🍻 Cheers'));
-            }}>
-            Set Purpose to &quot;🍻 Cheers&quot;
-          </Button>
-        </div>
-        <div style={{ margin: 8 }}>
-          <Button
-            onClick={() => {
-              /*
-              you can also just craft a transaction and send it to the tx() transactor
-              here we are sending value straight to the contract's address:
-            */
-              tx({
-                to: writeContracts.YourContract.address,
-                value: parseEther('0.001'),
-              });
-              /* this should throw an error about "no fallback nor receive function" until you add it */
-            }}>
-            Send Value
-          </Button>
-        </div>
-        <div style={{ margin: 8 }}>
-          <Button
-            onClick={() => {
-              /* look how we call setPurpose AND send some value along */
-              tx(
-                writeContracts.YourContract.setPurpose('💵 Paying for this one!', {
-                  value: parseEther('0.001'),
-                })
-              );
-              /* this will fail until you make the setPurpose function payable */
-            }}>
-            Set Purpose With Value
-          </Button>
-        </div>
-        <div style={{ margin: 8 }}>
-          <Button
-            onClick={() => {
-              /* you can also just craft a transaction and send it to the tx() transactor */
-              tx({
-                to: writeContracts.YourContract.address,
-                value: parseEther('0.001'),
-                data: writeContracts.YourContract.interface.encodeFunctionData('setPurpose(string)', [
-                  '🤓 Whoa so 1337!',
-                ]),
-              });
-              /* this should throw an error about "no fallback nor receive function" until you add it */
-            }}>
-            Another Example
-          </Button>
-        </div>
+        Address
+        <Input
+          onChange={(e) => {
+            setGranteeAddr(e.target.value);
+          }}
+        />
+        <Button
+          style={{ marginTop: 8 }}
+          onClick={async () => {
+            const key = setPublicKeyEvents.find((e: any) => e.sender === granteeAddr).pubkey;
+            const ciphertext = stringifiableToHex(
+              encrypt(encode(key), { data: newSecret }, 'x25519-xsalsa20-poly1305')
+            );
+            tx(writeContracts.YourContract.addNewSecret(ciphertext, granteeAddr));
+          }}>
+          Add
+        </Button>
       </div>
-
-      {/*
-        📑 Maybe display a list of events?
-          (uncomment the event and emit line in YourContract.sol! )
-      */}
       <div style={{ width: 600, margin: 'auto', marginTop: 32, paddingBottom: 32 }}>
-        <h2>Events:</h2>
+        <h2>Public keys:</h2>
         <List
           bordered
-          dataSource={setPurposeEvents}
+          dataSource={setPublicKeyEvents}
           renderItem={(item: any) => {
             return (
               <List.Item key={item.blockNumber + '_' + item.sender + '_' + item.purpose}>
-                <Address address={item[0]} ensProvider={mainnetProvider} fontSize={16} /> =&gt
-                {item[1]}
+                <Address address={item[0]} ensProvider={mainnetProvider} fontSize={16} /> =
+                <Address address={item[1]} fontSize={16} />
               </List.Item>
             );
           }}
         />
       </div>
-
-      <div style={{ width: 600, margin: 'auto', marginTop: 32, paddingBottom: 256 }}>
-        <Card>
-          Check out all the{' '}
-          <a
-            href="https://github.com/austintgriffith/scaffold-eth/tree/master/packages/react-app/src/components"
-            target="_blank"
-            rel="noopener noreferrer">
-            📦 components
-          </a>
-        </Card>
-
-        <Card style={{ marginTop: 32 }}>
-          <div>
-            There are tons of generic components included from{' '}
-            <a href="https://ant.design/components/overview/" target="_blank" rel="noopener noreferrer">
-              🐜 ant.design
-            </a>{' '}
-            too!
-          </div>
-
-          <div style={{ marginTop: 8 }}>
-            <Button type="primary">Buttons</Button>
-          </div>
-
-          <div style={{ marginTop: 8 }}>
-            <SyncOutlined spin /> Icons
-          </div>
-
-          <div style={{ marginTop: 8 }}>
-            Date Pickers?
-            <div style={{ marginTop: 2 }}>
-              <DatePicker onChange={() => {}} />
-            </div>
-          </div>
-
-          <div style={{ marginTop: 32 }}>
-            <Slider range defaultValue={[20, 50]} onChange={() => {}} />
-          </div>
-
-          <div style={{ marginTop: 32 }}>
-            <Switch defaultChecked onChange={() => {}} />
-          </div>
-
-          <div style={{ marginTop: 32 }}>
-            <Progress percent={50} status="active" />
-          </div>
-
-          <div style={{ marginTop: 32 }}>
-            <Spin />
-          </div>
-        </Card>
+      <div style={{ width: 600, margin: 'auto', marginTop: 32, paddingBottom: 32 }}>
+        <h2>Secrets:</h2>
+        <List
+          bordered
+          dataSource={setSecretEvents}
+          renderItem={(item: any) => {
+            return (
+              <List.Item key={item.blockNumber + '_' + item.sender + '_' + item.ciphertext}>
+                {'Sent by '} <Address address={item.sender} fontSize={16} /> {' to '}{' '}
+                {item.sender !== item.grantee ? <Address address={item.grantee} fontSize={16} /> : 'herself'}{' '}
+                {item.grantee === address && (
+                  <Button
+                    onClick={async () => {
+                      await window.ethereum.request({
+                        method: 'eth_decrypt',
+                        params: [item.ciphertext, window.ethereum.selectedAddress],
+                      });
+                    }}>
+                    Decrypt
+                  </Button>
+                )}
+              </List.Item>
+            );
+          }}
+        />
       </div>
     </div>
   );

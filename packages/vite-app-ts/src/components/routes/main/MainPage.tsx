@@ -188,10 +188,11 @@ export const MainPage: FC<{ subgraphUri: string }> = (props) => {
   ]);
 
   // keep track of a variable from the contract in the local React state:
-  const purpose = useContractReader(readContracts, 'YourContract', 'purpose');
+  const purpose = useContractReader(readContracts, 'YourContract', 'getPublicKey', [address]);
 
   // 📟 Listen for broadcast events
-  const setPurposeEvents = useEventListener(readContracts, 'YourContract', 'SetPurpose', localProvider, 1);
+  const setPublicKeyEvents = useEventListener(readContracts, 'YourContract', 'RegisterPublicKey', localProvider, 1);
+  const setSecretEvents = useEventListener(readContracts, 'YourContract', 'NewSecret', localProvider, 1);
 
   /*
   const addressFromENS = useResolveName(mainnetProvider, "austingriffith.eth");
@@ -483,7 +484,8 @@ export const MainPage: FC<{ subgraphUri: string }> = (props) => {
               writeContracts={writeContracts}
               readContracts={readContracts}
               purpose={purpose ?? ''}
-              setPurposeEvents={setPurposeEvents}
+              setPublicKeyEvents={setPublicKeyEvents}
+              setSecretEvents={setSecretEvents}
             />
           </Route>
           <Route path="/mainnetdai">
